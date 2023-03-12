@@ -78,7 +78,7 @@ bot.command("ask", async (ctx) => {
 bot.launch();
 const http = require('http');
 
-const hostname = 'localhost';
+const hostname = '0.0.0.0';
 const port = 8080;
 
 const server = http.createServer((req, res) => {
