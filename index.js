@@ -1,93 +1,59 @@
-require('dotenv').config()
-const { Configuration, OpenAIApi } = require("openai");
-const { getImage, getChat } = require("./Helper/functions");
-const { Telegraf } = require("telegraf");
+const express = require('express');
+const bodyParser = require('body-parser');
+const request = require('request');
 
-const configuration = new Configuration({
-  apiKey: process.env.API,
-});
-const openai = new OpenAIApi(configuration);
-module.exports = openai;
+const app = express();
 
-const bot = new Telegraf(process.env.TG_API);
-bot.start((ctx) => ctx.reply("Welcome , You can ask anything from me"));
+const PAGE_ACCESS_TOKEN = 'EAAImsIrZBcS8BAPrZCqfSTJtRbLxOFyvd5KMTUzrPWgqkeGZAy1zORtioGbwBcI4ny8dbytnuECtvVUjg5o0QSODNgXHsI7RKGTbtatgSwM7X3C9ROyQA3TuDAMr5oZCQUkhBKViGb7WgOfZAnF2apvV4Tb3EiX7aZCP90dpatNfapcJIaWpo4';
 
-bot.help((ctx) => {
-  ctx.reply(
-    "This bot can perform the following command \n /image -> to create image from text \n /ask -> ank anything from me "
-  );
+app.use(bodyParser.urlencoded({extended: false}));
+app.use(bodyParser.json());
+
+app.get('/', (req, res) => {
+    res.send('Hello World');
 });
 
-
-
-// Image command
-bot.command("image", async (ctx) => {
-  const text = ctx.message.text?.replace("/image", "")?.trim().toLowerCase();
-
-  if (text) {
-   
-    const res = await getImage(text);
-
-    if (res) {
-      ctx.sendChatAction("upload_photo");
-      // ctx.sendPhoto(res);
-      // ctx.telegram.sendPhoto()
-      ctx.telegram.sendPhoto(ctx.message.chat.id, res, {
-        reply_to_message_id: ctx.message.message_id,
-      });
+app.get('/webhook', (req, res) => {
+    if (req.query['hub.verify_token'] === 'verify') {
+        res.send(req.query['hub.challenge']);
     }
-  } else {
-    ctx.telegram.sendMessage(
-      ctx.message.chat.id,
-      "You have to give some description after /image",
-      {
-        reply_to_message_id: ctx.message.message_id,
-      }
-    );
-  }
+    res.send('Error, wrong validation token');
 });
 
-// Chat command
-
-bot.command("ask", async (ctx) => {
-  const text = ctx.message.text?.replace("/ask", "")?.trim().toLowerCase();
-
-  if (text) {
-    ctx.sendChatAction("typing");
-    const res = await getChat(text);
-    if (res) {
-      ctx.telegram.sendMessage(ctx.message.chat.id, res, {
-        reply_to_message_id: ctx.message.message_id,
-      });
+app.post('/webhook', (req, res) => {
+    let messaging_events = req.body.entry[0].messaging;
+    for (let i = 0; i < messaging_events.length; i++) {
+        let event = messaging_events[i];
+        let sender = event.sender.id;
+        if (event.message && event.message.text) {
+            let text = event.message.text.toLowerCase();
+            if (text === 'hi') {
+                sendTextMessage(sender, 'Hello World');
+            }
+        }
     }
-  } else {
-    ctx.telegram.sendMessage(
-      ctx.message.chat.id,
-      "Please ask anything after /ask",
-      {
-        reply_to_message_id: ctx.message.message_id,
-      }
-    );
-  
-    //  reply("Please ask anything after /ask");
-  }
+    res.sendStatus(200);
 });
 
+function sendTextMessage(sender, text) {
+    let messageData = {text: text};
+    request({
+        url: 'https://graph.facebook.com/v11.0/me/messages',
+        qs: {access_token: PAGE_ACCESS_TOKEN},
+        method: 'POST',
+        json: {
+            recipient: {id: sender},
+            message: messageData,
+        },
+    }, function (error, response, body) {
+        if (error) {
+            console.log('Error sending messages: ', error);
+        } else if (response.body.error) {
+            console.log('Error: ', response.body.error);
+        }
+    });
+}
 
-
-bot.launch();
-const http = require('http');
-
-const hostname = '0.0.0.0';
-const port = 8080;
-
-const server = http.createServer((req, res) => {
-    res.statusCode = 200;
-    res.setHeader('Content-Type', 'text/plain');
-    res.end('Hello, World!\n');
+app.listen(process.env.PORT, () => {
+    console.log(`Server is listening on port ${process.env.PORT}`);
 });
-
-server.listen(port, hostname, () => {
-    console.log(`Server running at http://${hostname}:${port}/`);
-});
-
